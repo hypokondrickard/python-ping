@@ -86,6 +86,13 @@
      -  Added packet size to verbose_ping & quiet_ping functions.
      -  Bump up version to 0.2
 
+    August 27, 2015
+    ------------------
+    Little modifications by i19:
+     -  update quiet_ping function.
+     -  reutrn min round trip time and plist self
+     -  returns result as a class
+
 """
 
 __version__ = "0.2"
@@ -237,14 +244,17 @@ def quiet_ping(dest_addr, timeout = 2, count = 4, psize = 64):
     """
     Send `count' ping with `psize' size to `dest_addr' with
     the given `timeout' and display the result.
-    Returns `percent' lost packages, `max' round trip time
-    and `avrg' round trip time.
+    Returns `percent' lost packages, `max' `min' `avg' round trip time
+    and plist self as a class
     """
-    mrtt = None
-    artt = None
-    lost = 0
-    plist = []
+    class Resp(object):
+        maxrtt = None
+        avgrtt = None
+        minrtt = None
+        lost = 0
+        plist = []
 
+    resp = Resp()
     for i in xrange(count):
         try:
             delay = do_one(dest_addr, timeout, psize)
@@ -254,17 +264,18 @@ def quiet_ping(dest_addr, timeout = 2, count = 4, psize = 64):
 
         if delay != None:
             delay = delay * 1000
-            plist.append(delay)
+            resp.plist.append(delay)
 
     # Find lost package percent
-    percent_lost = 100 - (len(plist) * 100 / count)
+    percent_lost = 100 - (len(resp.plist) * 100 / count)
 
     # Find max and avg round trip time
-    if plist:
-        mrtt = max(plist)
-        artt = sum(plist) / len(plist)
+    if resp.plist:
+        resp.maxrtt = max(resp.plist)
+        resp.minrtt = min(resp.plist)
+        resp.avgrtt = sum(resp.plist) / len(resp.plist)
 
-    return percent_lost, mrtt, artt
+    return resp
 
 if __name__ == '__main__':
     verbose_ping("heise.de")
