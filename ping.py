@@ -101,11 +101,10 @@ import os
 import select
 import socket
 import struct
-import sys
 import time
 
 # From /usr/include/linux/icmp.h; your milage may vary.
-ICMP_ECHO_REQUEST = 8 # Seems to be the same on Solaris.
+ICMP_ECHO_REQUEST = 8  # Seems to be the same on Solaris.
 
 
 def checksum(source_string):
@@ -118,11 +117,11 @@ def checksum(source_string):
     for count in xrange(0, count_to, 2):
         this = ord(source_string[count + 1]) * 256 + ord(source_string[count])
         sum = sum + this
-        sum = sum & 0xffffffff # Necessary?
+        sum = sum & 0xffffffff  # Necessary?
 
     if count_to < len(source_string):
         sum = sum + ord(source_string[len(source_string) - 1])
-        sum = sum & 0xffffffff # Necessary?
+        sum = sum & 0xffffffff  # Necessary?
 
     sum = (sum >> 16) + (sum & 0xffff)
     sum = sum + (sum >> 16)
@@ -144,14 +143,14 @@ def receive_one_ping(my_socket, id, timeout):
         started_select = time.time()
         what_ready = select.select([my_socket], [], [], time_left)
         how_long_in_select = (time.time() - started_select)
-        if what_ready[0] == []: # Timeout
+        if what_ready[0] == []:  # Timeout
             return
 
         time_received = time.time()
         received_packet, addr = my_socket.recvfrom(1024)
-        icmpHeader = received_packet[20:28]
+        icmp_header = received_packet[20:28]
         type, code, checksum, packet_id, sequence = struct.unpack(
-            "bbHHh", icmpHeader
+            "bbHHh", icmp_header
         )
         if packet_id == id:
             bytes = struct.calcsize("d")
@@ -167,7 +166,7 @@ def send_one_ping(my_socket, dest_addr, id, psize):
     """
     Send one ping to the given >dest_addr<.
     """
-    dest_addr  =  socket.gethostbyname(dest_addr)
+    dest_addr = socket.gethostbyname(dest_addr)
 
     # Remove header size from packet size
     psize = psize - 8
@@ -190,7 +189,7 @@ def send_one_ping(my_socket, dest_addr, id, psize):
         "bbHHh", ICMP_ECHO_REQUEST, 0, socket.htons(my_checksum), id, 1
     )
     packet = header + data
-    my_socket.sendto(packet, (dest_addr, 1)) # Don't know about the 1
+    my_socket.sendto(packet, (dest_addr, 1))  # Don't know about the 1
 
 
 def do_one(dest_addr, timeout, psize):
@@ -208,7 +207,7 @@ def do_one(dest_addr, timeout, psize):
                 " running as root."
             )
             raise socket.error(msg)
-        raise # raise the original error
+        raise  # raise the original error
 
     my_id = os.getpid() & 0xFFFF
 
@@ -219,7 +218,7 @@ def do_one(dest_addr, timeout, psize):
     return delay
 
 
-def verbose_ping(dest_addr, timeout = 2, count = 4, psize = 64):
+def verbose_ping(dest_addr, timeout=2, count=4, psize=64):
     """
     Send `count' ping with `psize' size to `dest_addr' with
     the given `timeout' and display the result.
@@ -227,20 +226,20 @@ def verbose_ping(dest_addr, timeout = 2, count = 4, psize = 64):
     for i in xrange(count):
         print "ping %s with ..." % dest_addr,
         try:
-            delay  =  do_one(dest_addr, timeout, psize)
+            delay = do_one(dest_addr, timeout, psize)
         except socket.gaierror, e:
             print "failed. (socket error: '%s')" % e[1]
             break
 
-        if delay  ==  None:
+        if not delay:
             print "failed. (timeout within %ssec.)" % timeout
         else:
-            delay  =  delay * 1000
+            delay = delay * 1000
             print "get ping in %0.4fms" % delay
     print
 
 
-def quiet_ping(dest_addr, timeout = 2, count = 4, psize = 64):
+def quiet_ping(dest_addr, timeout=2, count=4, psize=64):
     """
     Send `count' ping with `psize' size to `dest_addr' with
     the given `timeout' and display the result.
@@ -260,23 +259,28 @@ def quiet_ping(dest_addr, timeout = 2, count = 4, psize = 64):
         try:
             delay = do_one(dest_addr, timeout, psize)
         except socket.gaierror, e:
-            lost += 1
-            resp.plist.append(0)
+            print e
+            delay = None
             break
 
-        if delay != None:
-            delay = delay * 1000
-            resp.plist.append(delay)
+        if delay:
+            resp.plist.append(delay * 1000)
+        else:
+            lost += 1
+            resp.plist.append(0)
 
     # Find lost package percent
-    self.percent_lost = lost * 100.0 / count
+    resp.percent_lost = lost * 100.0 / count
 
     # Find max and avg round trip time
-    if resp.plist:
-        resp.maxrtt = max(resp.plist)
+    resp.maxrtt = max(resp.plist)
+    if lost:
+        tmp = list(set(resp.plist))
+        tmp.remove(0)
+        resp.minrtt = min(tmp)
+    else:
         resp.minrtt = min(resp.plist)
-        resp.avgrtt = sum(resp.plist) / len(resp.plist)
-
+    resp.avgrtt = sum(resp.plist) / len(resp.plist)
     return resp
 
 if __name__ == '__main__':
