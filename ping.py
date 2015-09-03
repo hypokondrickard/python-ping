@@ -251,15 +251,16 @@ def quiet_ping(dest_addr, timeout = 2, count = 4, psize = 64):
         maxrtt = None
         avgrtt = None
         minrtt = None
-        lost = 0
+        percent_lost = None
         plist = []
 
     resp = Resp()
+    lost = 0
     for i in xrange(count):
         try:
             delay = do_one(dest_addr, timeout, psize)
         except socket.gaierror, e:
-            print "failed. (socket error: '%s')" % e[1]
+            lost += 1
             resp.plist.append(0)
             break
 
@@ -268,7 +269,7 @@ def quiet_ping(dest_addr, timeout = 2, count = 4, psize = 64):
             resp.plist.append(delay)
 
     # Find lost package percent
-    percent_lost = 100 - (len(resp.plist) * 100 / count)
+    self.percent_lost = lost * 100.0 / count
 
     # Find max and avg round trip time
     if resp.plist:
