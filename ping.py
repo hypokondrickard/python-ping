@@ -260,6 +260,7 @@ def quiet_ping(dest_addr, timeout = 2, count = 4, psize = 64):
             delay = do_one(dest_addr, timeout, psize)
         except socket.gaierror, e:
             print "failed. (socket error: '%s')" % e[1]
+            resp.plist.append(0)
             break
 
         if delay != None:
