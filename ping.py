@@ -144,7 +144,7 @@ def receive_one_ping(my_socket, id, timeout):
         what_ready = select.select([my_socket], [], [], time_left)
         how_long_in_select = (time.time() - started_select)
         if what_ready[0] == []:  # Timeout
-            return
+            return (None,None)
 
         time_received = time.time()
         received_packet, addr = my_socket.recvfrom(1024)
@@ -152,14 +152,20 @@ def receive_one_ping(my_socket, id, timeout):
         type, code, checksum, packet_id, sequence = struct.unpack(
             "bbHHh", icmp_header
         )
+
+        ip_header = received_packet[0:20]
+        ip_header_elements = struct.unpack('!BBHHHBBHII', ip_header)
+
+        ttl_received = ip_header_elements[5]
+
         if packet_id == id:
             bytes = struct.calcsize("d")
             time_sent = struct.unpack("d", received_packet[28:28 + bytes])[0]
-            return time_received - time_sent
+            return time_received - time_sent, ttl_received
 
         time_left = time_left - how_long_in_select
         if time_left <= 0:
-            return
+            return (None,None)
 
 
 def send_one_ping(my_socket, dest_addr, id, psize):
@@ -212,10 +218,10 @@ def do_one(dest_addr, timeout, psize):
     my_id = os.getpid() & 0xFFFF
 
     send_one_ping(my_socket, dest_addr, my_id, psize)
-    delay = receive_one_ping(my_socket, my_id, timeout)
+    delay, ttl = receive_one_ping(my_socket, my_id, timeout)
 
     my_socket.close()
-    return delay
+    return delay, ttl
 
 
 def verbose_ping(dest_addr, timeout=2, count=4, psize=64):
@@ -226,7 +232,7 @@ def verbose_ping(dest_addr, timeout=2, count=4, psize=64):
     for i in xrange(count):
         print "ping %s with ..." % dest_addr,
         try:
-            delay = do_one(dest_addr, timeout, psize)
+            delay,ttl = do_one(dest_addr, timeout, psize)
         except socket.gaierror, e:
             print "failed. (socket error: '%s')" % e[1]
             break
@@ -235,7 +241,7 @@ def verbose_ping(dest_addr, timeout=2, count=4, psize=64):
             print "failed. (timeout within %ssec.)" % timeout
         else:
             delay = delay * 1000
-            print "get ping in %0.4fms" % delay
+            print "get ping in %0.4fms, packet ttl: %s" % (delay,ttl)
     print
 
 
@@ -251,13 +257,14 @@ def quiet_ping(dest_addr, timeout=2, count=4, psize=64):
         avgrtt = None
         minrtt = None
         percent_lost = None
+        ttl = None
         plist = []
 
     resp = Resp()
     lost = 0
     for i in xrange(count):
         try:
-            delay = do_one(dest_addr, timeout, psize)
+            delay, ttl = do_one(dest_addr, timeout, psize)
         except socket.gaierror, e:
             print e
             delay = None
@@ -281,6 +288,8 @@ def quiet_ping(dest_addr, timeout=2, count=4, psize=64):
     else:
         resp.minrtt = min(resp.plist)
     resp.avgrtt = sum(resp.plist) / len(resp.plist)
+
+    resp.ttl = ttl
     return resp
 
 if __name__ == '__main__':
